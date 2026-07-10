@@ -3,18 +3,18 @@ import pdfplumber
 import re
 import dateparser
 from datetime import date
- 
+
 st.set_page_config(page_title="Visitor Work Licence Checker", page_icon="🛂", layout="centered")
- 
+
 MIN_DAYS = 10
- 
+
 EXPIRY_KEYWORDS = [
     "expiry date", "expiration date", "valid until", "valid till",
     "date of expiry", "licence expiry", "license expiry", "expires on", "expiry"
 ]
 DATE_PATTERN = re.compile(r"(\d{1,2}[\/\-\.\s](?:\d{1,2}|[A-Za-z]{3,9})[\/\-\.\s]\d{2,4})")
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # DESIGN SYSTEM — clean compliance-desk aesthetic
 # Palette: light neutral surface, single restrained blue accent, semantic
@@ -24,7 +24,7 @@ DATE_PATTERN = re.compile(r"(\d{1,2}[\/\-\.\s](?:\d{1,2}|[A-Za-z]{3,9})[\/\-\.\s
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
- 
+
 :root{
   --bg:#F5F6F8;
   --surface:#FFFFFF;
@@ -36,11 +36,11 @@ st.markdown("""
   --success-bg:#ECFDF3; --success-border:#ABEFC6; --success-text:#067647;
   --error-bg:#FEF3F2; --error-border:#FDA29B; --error-text:#B42318;
 }
- 
+
 html, body, [class*="css"] { font-family:'Inter', sans-serif; }
 .stApp{ background: var(--bg); }
 .block-container{ padding-top: 2.2rem; max-width: 720px; }
- 
+
 /* ---------- Top bar ---------- */
 .topbar{ display:flex; align-items:center; gap:.7rem; margin-bottom:.3rem; }
 .topbar-icon{
@@ -51,7 +51,7 @@ html, body, [class*="css"] { font-family:'Inter', sans-serif; }
 .topbar-title{ font-size:1.28rem; font-weight:700; color:var(--text-primary); line-height:1.2; }
 .topbar-sub{ font-size:.82rem; color:var(--text-secondary); margin-top:1px; }
 .hairline{ height:1px; background:var(--border); margin: 1.1rem 0 1.5rem 0; }
- 
+
 /* ---------- Step indicator ---------- */
 .steps{ display:flex; align-items:center; margin-bottom:1.7rem; }
 .step{ display:flex; align-items:center; gap:.5rem; }
@@ -64,7 +64,7 @@ html, body, [class*="css"] { font-family:'Inter', sans-serif; }
 .step-label{ font-size:.78rem; color:var(--text-secondary); font-weight:500; }
 .step-label.active{ color:var(--text-primary); font-weight:600; }
 .step-line{ flex:1; height:1px; background:var(--border); margin:0 .8rem; }
- 
+
 /* ---------- Cards ---------- */
 .card{
   background:var(--surface); border:1px solid var(--border); border-radius:10px;
@@ -76,7 +76,7 @@ html, body, [class*="css"] { font-family:'Inter', sans-serif; }
 }
 .rule-item{ display:flex; gap:.55rem; padding:.3rem 0; font-size:.88rem; color:var(--text-primary); }
 .rule-item .dot{ color:var(--accent); font-weight:700; }
- 
+
 /* ---------- File uploader ---------- */
 [data-testid="stFileUploader"]{
   background:var(--surface); border:1.5px dashed var(--border); border-radius:10px;
@@ -84,13 +84,13 @@ html, body, [class*="css"] { font-family:'Inter', sans-serif; }
 }
 [data-testid="stFileUploaderDropzone"]{ background:transparent !important; }
 [data-testid="stFileUploader"] section{ background:transparent; }
- 
+
 /* ---------- Selectbox ---------- */
 div[data-baseweb="select"] > div{
   background:var(--surface) !important; border-color:var(--border) !important;
   border-radius:8px !important; color:var(--text-primary) !important;
 }
- 
+
 /* ---------- Verdict badge ---------- */
 .badge{
   display:inline-flex; align-items:center; gap:.4rem;
@@ -99,7 +99,7 @@ div[data-baseweb="select"] > div{
 }
 .badge.ok{ background:var(--success-bg); border-color:var(--success-border); color:var(--success-text); }
 .badge.no{ background:var(--error-bg); border-color:var(--error-border); color:var(--error-text); }
- 
+
 /* ---------- Data tile grid ---------- */
 .tile-grid{ display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
 .tile{
@@ -115,12 +115,12 @@ div[data-baseweb="select"] > div{
 }
 .tile.highlight{ background:var(--accent-soft); border-color:#C7D5FA; }
 .tile.highlight .tile-value{ color:var(--accent); }
- 
+
 [data-testid="stExpander"]{ border:1px solid var(--border) !important; border-radius:8px !important; background:var(--surface) !important; }
 </style>
 """, unsafe_allow_html=True)
- 
- 
+
+
 def render_steps(active: int):
     labels = ["Upload", "Extract", "Verify"]
     html = '<div class="steps">'
@@ -132,8 +132,8 @@ def render_steps(active: int):
             html += '<div class="step-line"></div>'
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
- 
- 
+
+
 def extract_text_from_pdf(uploaded_file):
     text = ""
     with pdfplumber.open(uploaded_file) as pdf:
@@ -152,8 +152,8 @@ def extract_text_from_pdf(uploaded_file):
         return ocr_text, "ocr"
     except Exception as e:
         return "", f"ocr_failed: {e}"
- 
- 
+
+
 def find_expiry_date(text):
     lower_text = text.lower()
     candidates = []
@@ -167,8 +167,8 @@ def find_expiry_date(text):
         return candidates
     all_dates = DATE_PATTERN.findall(text)
     return [("(no keyword match — all dates found)", d) for d in all_dates]
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # LAYOUT
 # ---------------------------------------------------------------------------
@@ -182,9 +182,9 @@ st.markdown("""
 </div>
 <div class="hairline"></div>
 """, unsafe_allow_html=True)
- 
+
 step = 1
- 
+
 st.markdown(f"""
 <div class="card">
   <div class="card-label">Verification Rule</div>
@@ -193,24 +193,24 @@ st.markdown(f"""
   <div class="rule-item"><span class="dot">→</span> {MIN_DAYS} days or more remaining: <b>Accepted</b></div>
 </div>
 """, unsafe_allow_html=True)
- 
+
 uploaded_file = st.file_uploader("Upload visitor work licence (PDF)", type=["pdf"])
- 
+
 if uploaded_file:
     step = 2
     render_steps(step)
- 
+
     with st.spinner("Reading document..."):
         text, method = extract_text_from_pdf(uploaded_file)
- 
+
     if not text.strip():
         st.error("Could not extract any text from this PDF, even with OCR.")
     else:
         if method == "ocr":
             st.info("This PDF had no selectable text — used OCR to read it.")
- 
+
         candidates = find_expiry_date(text)
- 
+
         if not candidates:
             st.error("No date-like values were found in this document.")
         else:
@@ -218,7 +218,7 @@ if uploaded_file:
             choice = st.selectbox("Select the correct expiry date:", options)
             raw_date_str = choice.split("→")[-1].strip()
             parsed_date = dateparser.parse(raw_date_str)
- 
+
             if not parsed_date:
                 st.error(f"Found '{raw_date_str}' but couldn't parse it as a date.")
             else:
@@ -230,9 +230,9 @@ if uploaded_file:
                 badge_class = "ok" if accepted else "no"
                 badge_icon = "✓" if accepted else "✕"
                 badge_text = "ACCEPTED" if accepted else "REJECTED"
- 
+
                 st.markdown(f'<span class="badge {badge_class}">{badge_icon} {badge_text}</span>', unsafe_allow_html=True)
- 
+
                 st.markdown(f"""
                 <div class="card" style="margin-top:0;">
                   <div class="tile-grid">
@@ -243,6 +243,6 @@ if uploaded_file:
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
- 
+
         with st.expander("View extracted document text (for verification)"):
             st.text(text)
